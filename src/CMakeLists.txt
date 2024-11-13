@@ -9,7 +9,7 @@ add_executable(test main.cpp)
 
 target_link_libraries(test Kokkos::kokkos)
 
-target_compile_options(test PUBLIC -g -O3 -fopenmp -DUSE_KOKKOS_SYCL)
-target_link_options(test PUBLIC -g -O3 -fopenmp -DUSE_KOKKOS_SYCL)
+target_compile_options(test PUBLIC -g -O3 -fopenmp)
+target_link_options(test PUBLIC -g -O3 -fopenmp)
 
 
