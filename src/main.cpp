@@ -1,24 +1,18 @@
-#include <CL/sycl.hpp>
+#include <omp.h>
 #include <iostream>
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
 
-using namespace sycl;
-
 int main(int argc, char *argv[]) {
-  // Initialize SYCL queue with OpenMP backend
-  queue q{cpu_selector{}, property::queue::in_order()};
   srand(time(0));
 
   int Ncell = 10000;
   int VertPerCell = 642;
   int size = Ncell * VertPerCell;
   double *array = (double *)malloc(size * sizeof(double));
-
-  // Allocate memory in SYCL
-  double *reuseableTempMemory = malloc_shared<double>(size, q);
-  double *arrayDeviceView = malloc_shared<double>(size, q);
+  double *reuseableTempMemory = (double *)malloc(size * sizeof(double));
+  double *arrayDeviceView = (double *)malloc(size * sizeof(double));
 
   // Initialize the array with random values
   for (int i = 0; i < size; ++i) {
@@ -26,7 +20,10 @@ int main(int argc, char *argv[]) {
   }
 
   // Copy data from host array to device memory
-  q.memcpy(arrayDeviceView, array, size * sizeof(double)).wait();
+  #pragma omp parallel for
+  for (int i = 0; i < size; ++i) {
+    arrayDeviceView[i] = array[i];
+  }
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -40,9 +37,16 @@ int main(int argc, char *argv[]) {
     double *srcPtr = arrayDeviceView + startIndex + nIndsToDelete;
     double *tmpBufferPtr = reuseableTempMemory;
 
-    // Copy data using SYCL queue
-    q.memcpy(tmpBufferPtr, srcPtr, nDataToMove * sizeof(double)).wait();
-    q.memcpy(dstPtr, tmpBufferPtr, nDataToMove * sizeof(double)).wait();
+    // Copy data using OpenMP parallel for
+    #pragma omp parallel for
+    for (int j = 0; j < nDataToMove; ++j) {
+      tmpBufferPtr[j] = srcPtr[j];
+    }
+
+    #pragma omp parallel for
+    for (int j = 0; j < nDataToMove; ++j) {
+      dstPtr[j] = tmpBufferPtr[j];
+    }
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -53,8 +57,8 @@ int main(int argc, char *argv[]) {
 
   // Free allocated memory
   free(array);
-  free(reuseableTempMemory, q);
-  free(arrayDeviceView, q);
+  free(reuseableTempMemory);
+  free(arrayDeviceView);
 
   return 0;
 }
